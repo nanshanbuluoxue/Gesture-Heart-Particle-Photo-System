@@ -1,0 +1,1727 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>浪漫手势粒子系统 - 用爱定格每一刻</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@300;400;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --primary-pink: #ff6b9d;
+            --soft-pink: #ffa5c3;
+            --deep-rose: #e84393;
+            --lavender: #a29bfe;
+            --soft-purple: #dda0dd;
+            --gold-accent: #f9ca24;
+            --warm-white: #fff5f7;
+            --text-dark: #2d1f3d;
+        }
+        
+        body {
+            font-family: 'Noto Serif SC', serif;
+            background: linear-gradient(135deg, #1a0a1e 0%, #2d1f3d 50%, #1a1a2e 100%);
+            min-height: 100vh;
+            overflow: hidden;
+            color: var(--warm-white);
+        }
+        
+        /* Starfield Background */
+        #starfield {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+        
+        /* Main Canvas Layers */
+        #particleCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        #effectCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+        }
+        
+        /* Video Feed (hidden but functional) */
+        #videoContainer {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            border-radius: 15px;
+            overflow: hidden;
+            z-index: 100;
+            box-shadow: 0 10px 40px rgba(255, 107, 157, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+        }
+        
+        #videoContainer video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+        
+        #handCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+        }
+        
+        /* Romantic Title */
+        .title-container {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 50;
+            pointer-events: none;
+        }
+        
+        .main-title {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 3.5rem;
+            background: linear-gradient(135deg, var(--primary-pink), var(--lavender), var(--gold-accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 60px rgba(255, 107, 157, 0.5);
+            animation: titleGlow 4s ease-in-out infinite;
+            letter-spacing: 0.1em;
+        }
+        
+        .subtitle {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 8px;
+            font-style: italic;
+            letter-spacing: 0.3em;
+        }
+        
+        @keyframes titleGlow {
+            0%, 100% { filter: drop-shadow(0 0 20px rgba(255, 107, 157, 0.6)); }
+            50% { filter: drop-shadow(0 0 40px rgba(162, 155, 254, 0.8)); }
+        }
+        
+        /* Gesture Status Panel */
+        .gesture-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(45, 31, 61, 0.8);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 20px;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-width: 220px;
+        }
+        
+        .gesture-panel h3 {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 1.3rem;
+            color: var(--soft-pink);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .gesture-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .gesture-item:last-child {
+            border-bottom: none;
+        }
+        
+        .gesture-item.active {
+            background: linear-gradient(90deg, rgba(255, 107, 157, 0.2), transparent);
+            margin: 0 -10px;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        
+        .gesture-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .gesture-item.active .gesture-icon {
+            background: linear-gradient(135deg, var(--primary-pink), var(--lavender));
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(255, 107, 157, 0.5);
+        }
+        
+        .gesture-text {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .gesture-item.active .gesture-text {
+            color: white;
+            font-weight: 600;
+        }
+        
+        /* Upload Panel */
+        .upload-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+        }
+        
+        .upload-area {
+            background: rgba(45, 31, 61, 0.8);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 25px;
+            border: 2px dashed rgba(255, 107, 157, 0.4);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            min-width: 200px;
+        }
+        
+        .upload-area:hover, .upload-area.dragover {
+            border-color: var(--primary-pink);
+            background: rgba(255, 107, 157, 0.1);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(255, 107, 157, 0.2);
+        }
+        
+        .upload-area .icon {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .upload-area p {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 5px;
+        }
+        
+        .upload-area small {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.4);
+        }
+        
+        .photo-count {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.85rem;
+            color: var(--soft-pink);
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        /* Photo Preview Panel */
+        .preview-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: rgba(45, 31, 61, 0.95);
+            backdrop-filter: blur(30px);
+            border-radius: 25px;
+            padding: 30px;
+            z-index: 200;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            max-width: 500px;
+            max-height: 80vh;
+        }
+        
+        .preview-panel.visible {
+            transform: translate(-50%, -50%) scale(1);
+        }
+        
+        .preview-panel img {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .preview-panel .close-btn {
+            position: absolute;
+            top: -15px;
+            right: -15px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-pink), var(--deep-rose));
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        
+        .preview-panel .close-btn:hover {
+            transform: scale(1.1) rotate(90deg);
+        }
+        
+        /* Settings Panel */
+        .settings-panel {
+            position: fixed;
+            top: 20px;
+            right: 230px;
+            background: rgba(45, 31, 61, 0.8);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 20px;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 250px;
+        }
+        
+        .settings-panel h3 {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 1.3rem;
+            color: var(--soft-pink);
+            margin-bottom: 15px;
+        }
+        
+        .setting-item {
+            margin-bottom: 15px;
+        }
+        
+        .setting-item label {
+            display: block;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 8px;
+        }
+        
+        .setting-item input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            appearance: none;
+            outline: none;
+        }
+        
+        .setting-item input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-pink), var(--lavender));
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(255, 107, 157, 0.5);
+        }
+        
+        .setting-value {
+            text-align: right;
+            font-size: 0.8rem;
+            color: var(--soft-pink);
+            margin-top: 5px;
+        }
+        
+        /* Romantic Quote */
+        .quote-container {
+            position: fixed;
+            bottom: 180px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 50;
+            pointer-events: none;
+            max-width: 500px;
+        }
+        
+        .quote {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.6);
+            font-style: italic;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+        
+        .quote.visible {
+            opacity: 1;
+        }
+        
+        /* Loading Screen */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a0a1e 0%, #2d1f3d 100%);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 1s ease, visibility 1s ease;
+        }
+        
+        .loading-screen.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        
+        .loading-heart {
+            font-size: 5rem;
+            animation: heartbeat 1.2s ease-in-out infinite;
+        }
+        
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            25% { transform: scale(1.1); }
+            50% { transform: scale(1); }
+            75% { transform: scale(1.15); }
+        }
+        
+        .loading-text {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 1.5rem;
+            color: var(--soft-pink);
+            margin-top: 20px;
+        }
+        
+        .loading-progress {
+            width: 200px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        
+        .loading-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-pink), var(--lavender));
+            border-radius: 2px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        
+        /* Error Modal */
+        .error-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: rgba(45, 31, 61, 0.95);
+            backdrop-filter: blur(30px);
+            border-radius: 25px;
+            padding: 40px;
+            z-index: 500;
+            text-align: center;
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        .error-modal.visible {
+            transform: translate(-50%, -50%) scale(1);
+        }
+        
+        .error-modal .icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+        
+        .error-modal h3 {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 1.5rem;
+            color: var(--soft-pink);
+            margin-bottom: 15px;
+        }
+        
+        .error-modal p {
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+        
+        .error-modal button {
+            background: linear-gradient(135deg, var(--primary-pink), var(--lavender));
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            color: white;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .error-modal button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(255, 107, 157, 0.4);
+        }
+        
+        /* Falling Hearts Decoration */
+        .falling-heart {
+            position: fixed;
+            color: var(--primary-pink);
+            opacity: 0.3;
+            pointer-events: none;
+            z-index: 3;
+            animation: fall linear forwards;
+        }
+        
+        @keyframes fall {
+            0% { transform: translateY(-100vh) rotate(0deg); opacity: 0.3; }
+            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+        
+        /* Screenshot Button */
+        .screenshot-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(45, 31, 61, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 30px;
+            padding: 12px 25px;
+            color: white;
+            font-size: 0.9rem;
+            cursor: pointer;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .screenshot-btn:hover {
+            background: linear-gradient(135deg, var(--primary-pink), var(--lavender));
+            transform: translateX(-50%) translateY(-3px);
+            box-shadow: 0 10px 30px rgba(255, 107, 157, 0.3);
+        }
+        
+        /* Dream Mode Indicator */
+        .dream-mode {
+            position: fixed;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            writing-mode: vertical-rl;
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 1rem;
+            color: rgba(255, 107, 157, 0.5);
+            letter-spacing: 0.3em;
+            opacity: 0;
+            transition: opacity 1s ease;
+            z-index: 50;
+        }
+        
+        .dream-mode.visible {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-heart">💕</div>
+        <div class="loading-text">正在唤醒浪漫...</div>
+        <div class="loading-progress">
+            <div class="loading-progress-bar" id="loadingBar"></div>
+        </div>
+    </div>
+    
+    <!-- Starfield Background -->
+    <canvas id="starfield"></canvas>
+    
+    <!-- Main Particle Canvas -->
+    <canvas id="particleCanvas"></canvas>
+    
+    <!-- Effect Layer Canvas -->
+    <canvas id="effectCanvas"></canvas>
+    
+    <!-- Title -->
+    <div class="title-container">
+        <h1 class="main-title">爱的粒子</h1>
+        <p class="subtitle">Love Particles · 用手势定格每一刻浪漫</p>
+    </div>
+    
+    <!-- Gesture Status Panel -->
+    <div class="gesture-panel">
+        <h3>✨ 手势状态</h3>
+        <div class="gesture-item" id="gestureOpen">
+            <div class="gesture-icon">🖐️</div>
+            <div class="gesture-text">张开手掌 - 散开粒子</div>
+        </div>
+        <div class="gesture-item" id="gestureFist">
+            <div class="gesture-icon">✊</div>
+            <div class="gesture-text">握拳 - 聚合爱心</div>
+        </div>
+        <div class="gesture-item" id="gesturePoint">
+            <div class="gesture-icon">👆</div>
+            <div class="gesture-text">食指指向 - 选择照片</div>
+        </div>
+        <div class="gesture-item" id="gestureHeart">
+            <div class="gesture-icon">🫶</div>
+            <div class="gesture-text">双手比心 - 特殊效果</div>
+        </div>
+    </div>
+    
+    <!-- Upload Panel -->
+    <div class="upload-panel">
+        <div class="upload-area" id="uploadArea">
+            <div class="icon">📸</div>
+            <p>点击或拖拽上传照片</p>
+            <small>支持 JPG, PNG, GIF</small>
+            <div class="photo-count" id="photoCount">已上传: 0 张照片</div>
+        </div>
+        <input type="file" id="fileInput" multiple accept="image/*">
+    </div>
+    
+    <!-- Settings Panel -->
+    <div class="settings-panel">
+        <h3>⚙️ 设置</h3>
+        <div class="setting-item">
+            <label>粒子数量</label>
+            <input type="range" id="particleCount" min="100" max="800" value="400">
+            <div class="setting-value" id="particleCountValue">400</div>
+        </div>
+        <div class="setting-item">
+            <label>爱心大小</label>
+            <input type="range" id="heartSize" min="50" max="200" value="120">
+            <div class="setting-value" id="heartSizeValue">120</div>
+        </div>
+        <div class="setting-item">
+            <label>粒子速度</label>
+            <input type="range" id="particleSpeed" min="1" max="10" value="5">
+            <div class="setting-value" id="particleSpeedValue">5</div>
+        </div>
+    </div>
+    
+    <!-- Video Container -->
+    <div id="videoContainer">
+        <video id="video" playsinline></video>
+        <canvas id="handCanvas"></canvas>
+    </div>
+    
+    <!-- Photo Preview Panel -->
+    <div class="preview-panel" id="previewPanel">
+        <button class="close-btn" id="closePreview">×</button>
+        <img id="previewImage" src="" alt="预览">
+    </div>
+    
+    <!-- Romantic Quote -->
+    <div class="quote-container">
+        <p class="quote" id="romanticQuote"></p>
+    </div>
+    
+    <!-- Screenshot Button -->
+    <button class="screenshot-btn" id="screenshotBtn">
+        <span>📷</span>
+        <span>保存截图</span>
+    </button>
+    
+    <!-- Dream Mode Indicator -->
+    <div class="dream-mode" id="dreamMode">梦境模式</div>
+    
+    <!-- Error Modal -->
+    <div class="error-modal" id="errorModal">
+        <div class="icon">🎥</div>
+        <h3>摄像头未就绪</h3>
+        <p>无法访问摄像头，请检查权限设置。<br>您仍可上传照片体验粒子效果~</p>
+        <button id="closeError">我知道了</button>
+    </div>
+
+    <script>
+        // ============================================
+        // ROMANTIC GESTURE-CONTROLLED PARTICLE SYSTEM
+        // ============================================
+        
+        // Romantic Quotes
+        const romanticQuotes = [
+            "每一个粒子都是一份思念",
+            "爱是宇宙间最美的引力",
+            "时光散落成星，汇聚成你",
+            "指尖触碰的是回忆的温度",
+            "愿所有的遇见都恰逢其时",
+            "你是我心中最美的风景",
+            "爱如繁星，照亮每个角落",
+            "把浪漫写进每一帧画面",
+            "心动是一瞬间，心安是一辈子",
+            "你的笑容是我最好的礼物"
+        ];
+        
+        // Global State
+        const state = {
+            gesture: 'none', // none, open, fist, point, heart
+            gestureConfidence: 0,
+            gestureHoldTime: 0,
+            lastGesture: 'none',
+            photos: [],
+            selectedPhotoIndex: -1,
+            isExpanded: false,
+            isDreamMode: false,
+            dreamModeTimer: null,
+            handsDetected: 0,
+            leftHandPos: null,
+            rightHandPos: null,
+            pointerPos: { x: 0, y: 0 },
+            pointerTarget: null,
+            pointerHoldTime: 0,
+            settings: {
+                particleCount: 400,
+                heartSize: 120,
+                particleSpeed: 5
+            }
+        };
+        
+        // Canvas Setup
+        const starCanvas = document.getElementById('starfield');
+        const particleCanvas = document.getElementById('particleCanvas');
+        const effectCanvas = document.getElementById('effectCanvas');
+        const starCtx = starCanvas.getContext('2d');
+        const particleCtx = particleCanvas.getContext('2d');
+        const effectCtx = effectCanvas.getContext('2d');
+        
+        // Video Setup
+        const video = document.getElementById('video');
+        const handCanvas = document.getElementById('handCanvas');
+        const handCtx = handCanvas.getContext('2d');
+        
+        // Resize Handler
+        function resizeCanvases() {
+            const dpr = window.devicePixelRatio || 1;
+            
+            [starCanvas, particleCanvas, effectCanvas].forEach(canvas => {
+                canvas.width = window.innerWidth * dpr;
+                canvas.height = window.innerHeight * dpr;
+                canvas.style.width = window.innerWidth + 'px';
+                canvas.style.height = window.innerHeight + 'px';
+                canvas.getContext('2d').scale(dpr, dpr);
+            });
+            
+            handCanvas.width = 200;
+            handCanvas.height = 150;
+        }
+        
+        resizeCanvases();
+        window.addEventListener('resize', resizeCanvases);
+        
+        // ============================================
+        // STARFIELD BACKGROUND
+        // ============================================
+        
+        class Star {
+            constructor() {
+                this.reset();
+            }
+            
+            reset() {
+                this.x = Math.random() * window.innerWidth;
+                this.y = Math.random() * window.innerHeight;
+                this.size = Math.random() * 2 + 0.5;
+                this.speed = Math.random() * 0.3 + 0.1;
+                this.brightness = Math.random();
+                this.twinkleSpeed = Math.random() * 0.02 + 0.01;
+                this.twinklePhase = Math.random() * Math.PI * 2;
+            }
+            
+            update() {
+                this.y += this.speed;
+                this.twinklePhase += this.twinkleSpeed;
+                
+                if (this.y > window.innerHeight) {
+                    this.y = 0;
+                    this.x = Math.random() * window.innerWidth;
+                }
+            }
+            
+            draw(ctx) {
+                const twinkle = (Math.sin(this.twinklePhase) + 1) / 2;
+                const alpha = 0.3 + twinkle * 0.7 * this.brightness;
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.fill();
+                
+                // Glow effect
+                const gradient = ctx.createRadialGradient(
+                    this.x, this.y, 0,
+                    this.x, this.y, this.size * 4
+                );
+                gradient.addColorStop(0, `rgba(255, 200, 255, ${alpha * 0.3})`);
+                gradient.addColorStop(1, 'transparent');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(this.x - this.size * 4, this.y - this.size * 4, this.size * 8, this.size * 8);
+            }
+        }
+        
+        const stars = Array.from({ length: 150 }, () => new Star());
+        
+        // Nebula clouds
+        class Nebula {
+            constructor() {
+                this.x = Math.random() * window.innerWidth;
+                this.y = Math.random() * window.innerHeight;
+                this.radius = Math.random() * 200 + 100;
+                this.color = Math.random() > 0.5 ? 
+                    [255, 107, 157] : [162, 155, 254];
+                this.speed = Math.random() * 0.2 + 0.05;
+                this.phase = Math.random() * Math.PI * 2;
+            }
+            
+            update() {
+                this.x += Math.sin(this.phase) * this.speed;
+                this.phase += 0.005;
+                
+                if (this.x < -this.radius) this.x = window.innerWidth + this.radius;
+                if (this.x > window.innerWidth + this.radius) this.x = -this.radius;
+            }
+            
+            draw(ctx) {
+                const gradient = ctx.createRadialGradient(
+                    this.x, this.y, 0,
+                    this.x, this.y, this.radius
+                );
+                gradient.addColorStop(0, `rgba(${this.color.join(',')}, 0.03)`);
+                gradient.addColorStop(0.5, `rgba(${this.color.join(',')}, 0.01)`);
+                gradient.addColorStop(1, 'transparent');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        const nebulae = Array.from({ length: 5 }, () => new Nebula());
+        
+        function drawStarfield() {
+            starCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+            
+            // Draw nebulae
+            nebulae.forEach(nebula => {
+                nebula.update();
+                nebula.draw(starCtx);
+            });
+            
+            // Draw stars
+            stars.forEach(star => {
+                star.update();
+                star.draw(starCtx);
+            });
+        }
+        
+        // ============================================
+        // HEART PARTICLE SYSTEM
+        // ============================================
+        
+        // Heart shape function
+        function getHeartPoint(t, size = 1) {
+            const x = 16 * Math.pow(Math.sin(t), 3);
+            const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+            return { x: x * size, y: y * size };
+        }
+        
+        class Particle {
+            constructor(index, total) {
+                this.index = index;
+                this.total = total;
+                this.reset();
+            }
+            
+            reset() {
+                // Calculate position on heart
+                const t = (this.index / this.total) * Math.PI * 2;
+                const heartPoint = getHeartPoint(t, state.settings.heartSize / 10);
+                
+                this.targetX = window.innerWidth / 2 + heartPoint.x;
+                this.targetY = window.innerHeight / 2 + heartPoint.y - 50;
+                
+                // Current position
+                this.x = this.targetX + (Math.random() - 0.5) * 10;
+                this.y = this.targetY + (Math.random() - 0.5) * 10;
+                
+                // Velocity
+                this.vx = 0;
+                this.vy = 0;
+                
+                // Photo assignment
+                this.photoIndex = state.photos.length > 0 ? 
+                    this.index % state.photos.length : -1;
+                
+                // Visual properties
+                this.size = Math.random() * 3 + 2;
+                this.baseColor = this.getGradientColor(this.index / this.total);
+                this.alpha = 0.8;
+                this.glowIntensity = Math.random() * 0.5 + 0.5;
+                
+                // Animation
+                this.phase = Math.random() * Math.PI * 2;
+                this.pulseSpeed = Math.random() * 0.02 + 0.01;
+                
+                // Expanded state
+                this.expandedX = Math.random() * window.innerWidth;
+                this.expandedY = Math.random() * window.innerHeight;
+                
+                // Trail
+                this.trail = [];
+            }
+            
+            getGradientColor(progress) {
+                const time = Date.now() * 0.0005;
+                const hue = (progress * 60 + time * 30) % 360;
+                return `hsl(${330 + hue * 0.2}, 80%, 65%)`;
+            }
+            
+            updateTarget() {
+                const t = (this.index / this.total) * Math.PI * 2;
+                const heartPoint = getHeartPoint(t, state.settings.heartSize / 10);
+                
+                // Pulse effect
+                const pulse = 1 + Math.sin(Date.now() * 0.003 + this.phase) * 0.05;
+                
+                this.targetX = window.innerWidth / 2 + heartPoint.x * pulse;
+                this.targetY = window.innerHeight / 2 + heartPoint.y * pulse - 50;
+            }
+            
+            update() {
+                this.phase += this.pulseSpeed;
+                this.baseColor = this.getGradientColor(this.index / this.total);
+                
+                // Store trail
+                this.trail.push({ x: this.x, y: this.y });
+                if (this.trail.length > 8) this.trail.shift();
+                
+                // Update target based on state
+                if (state.isExpanded) {
+                    // Move towards expanded position
+                    const targetX = this.expandedX;
+                    const targetY = this.expandedY;
+                    
+                    this.vx += (targetX - this.x) * 0.02;
+                    this.vy += (targetY - this.y) * 0.02;
+                } else {
+                    // Move towards heart position
+                    this.updateTarget();
+                    this.vx += (this.targetX - this.x) * 0.08;
+                    this.vy += (this.targetY - this.y) * 0.08;
+                }
+                
+                // Apply velocity with damping
+                const speed = state.settings.particleSpeed / 5;
+                this.vx *= 0.85;
+                this.vy *= 0.85;
+                this.x += this.vx * speed;
+                this.y += this.vy * speed;
+                
+                // Update photo index
+                this.photoIndex = state.photos.length > 0 ? 
+                    this.index % state.photos.length : -1;
+            }
+            
+            draw(ctx) {
+                // Draw trail
+                if (state.isExpanded || Math.abs(this.vx) > 1 || Math.abs(this.vy) > 1) {
+                    ctx.beginPath();
+                    this.trail.forEach((point, i) => {
+                        const alpha = (i / this.trail.length) * 0.3;
+                        ctx.fillStyle = `rgba(255, 107, 157, ${alpha})`;
+                        ctx.beginPath();
+                        ctx.arc(point.x, point.y, this.size * 0.5, 0, Math.PI * 2);
+                        ctx.fill();
+                    });
+                }
+                
+                // Draw photo if expanded
+                if (state.isExpanded && this.photoIndex >= 0 && state.photos[this.photoIndex]) {
+                    const photo = state.photos[this.photoIndex];
+                    const size = 40 + Math.sin(this.phase) * 5;
+                    
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, size / 2, 0, Math.PI * 2);
+                    ctx.clip();
+                    
+                    try {
+                        ctx.drawImage(photo.element, 
+                            this.x - size / 2, this.y - size / 2, 
+                            size, size);
+                    } catch (e) {}
+                    
+                    ctx.restore();
+                    
+                    // Glow around photo
+                    const gradient = ctx.createRadialGradient(
+                        this.x, this.y, size / 2,
+                        this.x, this.y, size
+                    );
+                    gradient.addColorStop(0, 'rgba(255, 107, 157, 0.3)');
+                    gradient.addColorStop(1, 'transparent');
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Border
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, size / 2, 0, Math.PI * 2);
+                    ctx.stroke();
+                } else {
+                    // Draw particle
+                    const glow = this.glowIntensity * (0.7 + Math.sin(this.phase) * 0.3);
+                    
+                    // Outer glow
+                    const gradient = ctx.createRadialGradient(
+                        this.x, this.y, 0,
+                        this.x, this.y, this.size * 4
+                    );
+                    gradient.addColorStop(0, this.baseColor);
+                    gradient.addColorStop(0.3, `rgba(255, 107, 157, ${glow * 0.5})`);
+                    gradient.addColorStop(1, 'transparent');
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size * 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Core
+                    ctx.fillStyle = this.baseColor;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Bright center
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size * 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            
+            isPointInside(px, py) {
+                const dist = Math.hypot(px - this.x, py - this.y);
+                return dist < (state.isExpanded ? 25 : 10);
+            }
+        }
+        
+        let particles = [];
+        
+        function initParticles() {
+            particles = Array.from({ length: state.settings.particleCount }, 
+                (_, i) => new Particle(i, state.settings.particleCount));
+        }
+        
+        // ============================================
+        // FALLING HEARTS DECORATION
+        // ============================================
+        
+        class FallingHeart {
+            constructor() {
+                this.reset();
+            }
+            
+            reset() {
+                this.x = Math.random() * window.innerWidth;
+                this.y = -50;
+                this.size = Math.random() * 15 + 10;
+                this.speed = Math.random() * 2 + 1;
+                this.rotation = 0;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.05;
+                this.swing = Math.random() * Math.PI * 2;
+                this.swingSpeed = Math.random() * 0.02 + 0.01;
+                this.opacity = Math.random() * 0.3 + 0.1;
+            }
+            
+            update() {
+                this.y += this.speed;
+                this.rotation += this.rotationSpeed;
+                this.swing += this.swingSpeed;
+                this.x += Math.sin(this.swing) * 0.5;
+                
+                if (this.y > window.innerHeight + 50) {
+                    this.reset();
+                }
+            }
+            
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                ctx.globalAlpha = this.opacity;
+                
+                // Draw heart shape
+                ctx.beginPath();
+                ctx.moveTo(0, this.size * 0.3);
+                ctx.bezierCurveTo(
+                    -this.size * 0.5, -this.size * 0.3,
+                    -this.size, this.size * 0.3,
+                    0, this.size
+                );
+                ctx.bezierCurveTo(
+                    this.size, this.size * 0.3,
+                    this.size * 0.5, -this.size * 0.3,
+                    0, this.size * 0.3
+                );
+                
+                const gradient = ctx.createLinearGradient(0, 0, 0, this.size);
+                gradient.addColorStop(0, '#ff6b9d');
+                gradient.addColorStop(1, '#a29bfe');
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                
+                ctx.restore();
+            }
+        }
+        
+        const fallingHearts = Array.from({ length: 15 }, () => new FallingHeart());
+        
+        // ============================================
+        // EFFECT LAYER (Pointer, Selection)
+        // ============================================
+        
+        function drawEffects() {
+            effectCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+            
+            // Draw pointer if pointing
+            if (state.gesture === 'point') {
+                const { x, y } = state.pointerPos;
+                
+                // Pointer ring
+                const progress = Math.min(state.pointerHoldTime / 500, 1);
+                
+                effectCtx.strokeStyle = `rgba(255, 107, 157, ${0.5 + progress * 0.5})`;
+                effectCtx.lineWidth = 3;
+                effectCtx.beginPath();
+                effectCtx.arc(x, y, 30 + Math.sin(Date.now() * 0.01) * 5, 0, Math.PI * 2 * progress);
+                effectCtx.stroke();
+                
+                // Progress indicator
+                if (progress > 0) {
+                    effectCtx.fillStyle = `rgba(255, 107, 157, ${progress * 0.3})`;
+                    effectCtx.beginPath();
+                    effectCtx.arc(x, y, 25, 0, Math.PI * 2);
+                    effectCtx.fill();
+                }
+                
+                // Center dot
+                effectCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                effectCtx.beginPath();
+                effectCtx.arc(x, y, 5, 0, Math.PI * 2);
+                effectCtx.fill();
+            }
+            
+            // Heart gesture special effect
+            if (state.gesture === 'heart') {
+                drawHeartGestureEffect();
+            }
+        }
+        
+        function drawHeartGestureEffect() {
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
+            const time = Date.now() * 0.002;
+            
+            // Radiating hearts
+            for (let i = 0; i < 12; i++) {
+                const angle = (i / 12) * Math.PI * 2 + time;
+                const dist = 150 + Math.sin(time * 2 + i) * 30;
+                const x = centerX + Math.cos(angle) * dist;
+                const y = centerY + Math.sin(angle) * dist;
+                const size = 15 + Math.sin(time * 3 + i) * 5;
+                
+                effectCtx.save();
+                effectCtx.translate(x, y);
+                effectCtx.rotate(angle + Math.PI / 2);
+                effectCtx.globalAlpha = 0.6 + Math.sin(time * 2 + i) * 0.3;
+                
+                effectCtx.fillStyle = i % 2 === 0 ? '#ff6b9d' : '#a29bfe';
+                effectCtx.beginPath();
+                effectCtx.moveTo(0, size * 0.3);
+                effectCtx.bezierCurveTo(-size * 0.5, -size * 0.3, -size, size * 0.3, 0, size);
+                effectCtx.bezierCurveTo(size, size * 0.3, size * 0.5, -size * 0.3, 0, size * 0.3);
+                effectCtx.fill();
+                
+                effectCtx.restore();
+            }
+            
+            // Central glow
+            const gradient = effectCtx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 200);
+            gradient.addColorStop(0, 'rgba(255, 107, 157, 0.3)');
+            gradient.addColorStop(0.5, 'rgba(162, 155, 254, 0.15)');
+            gradient.addColorStop(1, 'transparent');
+            effectCtx.fillStyle = gradient;
+            effectCtx.fillRect(centerX - 200, centerY - 200, 400, 400);
+        }
+        
+        // ============================================
+        // MEDIAPIPE HAND TRACKING
+        // ============================================
+        
+        let hands = null;
+        let camera = null;
+        
+        async function initMediaPipe() {
+            updateLoadingProgress(20);
+            
+            try {
+                hands = new Hands({
+                    locateFile: (file) => {
+                        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                    }
+                });
+                
+                hands.setOptions({
+                    maxNumHands: 2,
+                    modelComplexity: 1,
+                    minDetectionConfidence: 0.7,
+                    minTrackingConfidence: 0.5
+                });
+                
+                hands.onResults(onHandResults);
+                
+                updateLoadingProgress(50);
+                
+                // Try to get camera access
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: 640, 
+                        height: 480,
+                        facingMode: 'user'
+                    } 
+                });
+                
+                video.srcObject = stream;
+                await video.play();
+                
+                updateLoadingProgress(80);
+                
+                camera = new Camera(video, {
+                    onFrame: async () => {
+                        await hands.send({ image: video });
+                    },
+                    width: 640,
+                    height: 480
+                });
+                
+                await camera.start();
+                
+                updateLoadingProgress(100);
+                setTimeout(hideLoading, 500);
+                
+            } catch (error) {
+                console.error('Camera/MediaPipe error:', error);
+                updateLoadingProgress(100);
+                setTimeout(() => {
+                    hideLoading();
+                    showErrorModal();
+                }, 500);
+            }
+        }
+        
+        function onHandResults(results) {
+            // Clear hand canvas
+            handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+            
+            state.handsDetected = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
+            
+            // Reset dream mode timer on hand detection
+            if (state.handsDetected > 0) {
+                resetDreamModeTimer();
+            }
+            
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                // Draw hand landmarks
+                results.multiHandLandmarks.forEach((landmarks, index) => {
+                    drawHandLandmarks(landmarks, index);
+                });
+                
+                // Detect gesture
+                if (results.multiHandLandmarks.length === 2) {
+                    detectHeartGesture(results.multiHandLandmarks);
+                } else {
+                    detectSingleHandGesture(results.multiHandLandmarks[0], results.multiHandedness[0]);
+                }
+            } else {
+                updateGesture('none');
+            }
+        }
+        
+        function drawHandLandmarks(landmarks, handIndex) {
+            const color = handIndex === 0 ? '#ff6b9d' : '#a29bfe';
+            
+            // Draw connections
+            const connections = [
+                [0, 1], [1, 2], [2, 3], [3, 4], // Thumb
+                [0, 5], [5, 6], [6, 7], [7, 8], // Index
+                [0, 9], [9, 10], [10, 11], [11, 12], // Middle
+                [0, 13], [13, 14], [14, 15], [15, 16], // Ring
+                [0, 17], [17, 18], [18, 19], [19, 20], // Pinky
+                [5, 9], [9, 13], [13, 17] // Palm
+            ];
+            
+            handCtx.strokeStyle = color;
+            handCtx.lineWidth = 2;
+            
+            connections.forEach(([i, j]) => {
+                const p1 = landmarks[i];
+                const p2 = landmarks[j];
+                handCtx.beginPath();
+                handCtx.moveTo(p1.x * handCanvas.width, p1.y * handCanvas.height);
+                handCtx.lineTo(p2.x * handCanvas.width, p2.y * handCanvas.height);
+                handCtx.stroke();
+            });
+            
+            // Draw landmarks
+            landmarks.forEach((landmark, i) => {
+                const x = landmark.x * handCanvas.width;
+                const y = landmark.y * handCanvas.height;
+                
+                handCtx.fillStyle = [4, 8, 12, 16, 20].includes(i) ? '#ffffff' : color;
+                handCtx.beginPath();
+                handCtx.arc(x, y, 3, 0, Math.PI * 2);
+                handCtx.fill();
+            });
+        }
+        
+        function detectSingleHandGesture(landmarks, handedness) {
+            // Finger tip and base indices
+            const fingerTips = [8, 12, 16, 20]; // Index, middle, ring, pinky
+            const fingerBases = [6, 10, 14, 18];
+            const thumbTip = 4;
+            const thumbBase = 2;
+            
+            // Check if fingers are extended
+            let extendedFingers = 0;
+            fingerTips.forEach((tip, i) => {
+                if (landmarks[tip].y < landmarks[fingerBases[i]].y) {
+                    extendedFingers++;
+                }
+            });
+            
+            // Check thumb
+            const thumbExtended = Math.abs(landmarks[thumbTip].x - landmarks[thumbBase].x) > 0.05;
+            
+            // Check if only index finger is extended (pointing)
+            const indexExtended = landmarks[8].y < landmarks[6].y;
+            const middleExtended = landmarks[12].y < landmarks[10].y;
+            const ringExtended = landmarks[16].y < landmarks[14].y;
+            const pinkyExtended = landmarks[20].y < landmarks[18].y;
+            
+            let newGesture = 'none';
+            
+            if (indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
+                // Pointing gesture
+                newGesture = 'point';
+                
+                // Update pointer position (convert to screen coordinates)
+                const indexTip = landmarks[8];
+                state.pointerPos = {
+                    x: (1 - indexTip.x) * window.innerWidth,
+                    y: indexTip.y * window.innerHeight
+                };
+                
+            } else if (extendedFingers >= 3 && thumbExtended) {
+                // Open palm
+                newGesture = 'open';
+            } else if (extendedFingers <= 1 && !thumbExtended) {
+                // Fist
+                newGesture = 'fist';
+            }
+            
+            updateGesture(newGesture);
+        }
+        
+        function detectHeartGesture(allLandmarks) {
+            if (allLandmarks.length !== 2) return;
+            
+            // Check if thumbs and index fingers are forming a heart shape
+            const hand1 = allLandmarks[0];
+            const hand2 = allLandmarks[1];
+            
+            // Get thumb tips and index tips
+            const thumb1 = hand1[4];
+            const thumb2 = hand2[4];
+            const index1 = hand1[8];
+            const index2 = hand2[8];
+            
+            // Calculate distances
+            const thumbDist = Math.hypot(thumb1.x - thumb2.x, thumb1.y - thumb2.y);
+            const indexDist = Math.hypot(index1.x - index2.x, index1.y - index2.y);
+            
+            // Heart gesture: thumbs close together, index fingers close together
+            if (thumbDist < 0.15 && indexDist < 0.15) {
+                updateGesture('heart');
+            } else {
+                // Fall back to single hand gesture detection
+                detectSingleHandGesture(hand1, { label: 'Right' });
+            }
+        }
+        
+        function updateGesture(newGesture) {
+            if (newGesture === state.gesture) {
+                state.gestureHoldTime += 16; // Approximate frame time
+            } else {
+                state.lastGesture = state.gesture;
+                state.gesture = newGesture;
+                state.gestureHoldTime = 0;
+            }
+            
+            // Update UI
+            document.querySelectorAll('.gesture-item').forEach(el => el.classList.remove('active'));
+            
+            switch (state.gesture) {
+                case 'open':
+                    document.getElementById('gestureOpen').classList.add('active');
+                    state.isExpanded = true;
+                    break;
+                case 'fist':
+                    document.getElementById('gestureFist').classList.add('active');
+                    state.isExpanded = false;
+                    break;
+                case 'point':
+                    document.getElementById('gesturePoint').classList.add('active');
+                    handlePointing();
+                    break;
+                case 'heart':
+                    document.getElementById('gestureHeart').classList.add('active');
+                    break;
+            }
+        }
+        
+        function handlePointing() {
+            if (state.isExpanded && state.photos.length > 0) {
+                // Check if pointing at a photo particle
+                const { x, y } = state.pointerPos;
+                let targetParticle = null;
+                
+                particles.forEach(particle => {
+                    if (particle.isPointInside(x, y) && particle.photoIndex >= 0) {
+                        targetParticle = particle;
+                    }
+                });
+                
+                if (targetParticle) {
+                    state.pointerHoldTime += 16;
+                    
+                    if (state.pointerHoldTime >= 500) {
+                        showPhotoPreview(state.photos[targetParticle.photoIndex]);
+                        state.pointerHoldTime = 0;
+                    }
+                } else {
+                    state.pointerHoldTime = 0;
+                }
+            }
+        }
+        
+        // ============================================
+        // PHOTO MANAGEMENT
+        // ============================================
+        
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const photoCount = document.getElementById('photoCount');
+        
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+        
+        function handleFiles(files) {
+            Array.from(files).forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            state.photos.push({
+                                element: img,
+                                name: file.name,
+                                timestamp: Date.now()
+                            });
+                            updatePhotoCount();
+                            
+                            // Reassign photos to particles
+                            particles.forEach((p, i) => {
+                                p.photoIndex = i % state.photos.length;
+                                // Give expanded position near random location
+                                p.expandedX = Math.random() * (window.innerWidth - 100) + 50;
+                                p.expandedY = Math.random() * (window.innerHeight - 100) + 50;
+                            });
+                        };
+                        img.src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+        
+        function updatePhotoCount() {
+            photoCount.textContent = `已上传: ${state.photos.length} 张照片`;
+        }
+        
+        function showPhotoPreview(photo) {
+            const panel = document.getElementById('previewPanel');
+            const img = document.getElementById('previewImage');
+            img.src = photo.element.src;
+            panel.classList.add('visible');
+        }
+        
+        document.getElementById('closePreview').addEventListener('click', () => {
+            document.getElementById('previewPanel').classList.remove('visible');
+        });
+        
+        // ============================================
+        // SETTINGS
+        // ============================================
+        
+        const particleCountSlider = document.getElementById('particleCount');
+        const heartSizeSlider = document.getElementById('heartSize');
+        const particleSpeedSlider = document.getElementById('particleSpeed');
+        
+        particleCountSlider.addEventListener('input', (e) => {
+            state.settings.particleCount = parseInt(e.target.value);
+            document.getElementById('particleCountValue').textContent = e.target.value;
+            initParticles();
+        });
+        
+        heartSizeSlider.addEventListener('input', (e) => {
+            state.settings.heartSize = parseInt(e.target.value);
+            document.getElementById('heartSizeValue').textContent = e.target.value;
+        });
+        
+        particleSpeedSlider.addEventListener('input', (e) => {
+            state.settings.particleSpeed = parseInt(e.target.value);
+            document.getElementById('particleSpeedValue').textContent = e.target.value;
+        });
+        
+        // ============================================
+        // DREAM MODE
+        // ============================================
+        
+        function resetDreamModeTimer() {
+            if (state.isDreamMode) {
+                state.isDreamMode = false;
+                document.getElementById('dreamMode').classList.remove('visible');
+            }
+            
+            clearTimeout(state.dreamModeTimer);
+            state.dreamModeTimer = setTimeout(() => {
+                state.isDreamMode = true;
+                document.getElementById('dreamMode').classList.add('visible');
+            }, 30000); // 30 seconds of inactivity
+        }
+        
+        function updateDreamMode() {
+            if (state.isDreamMode) {
+                const time = Date.now() * 0.0003;
+                
+                // Slowly cycle through expanded/contracted states
+                state.isExpanded = Math.sin(time) > 0;
+                
+                // Slowly rotate heart
+                particles.forEach((p, i) => {
+                    const angle = time + (i / particles.length) * Math.PI * 2;
+                    const radius = state.settings.heartSize * 10;
+                    p.expandedX = window.innerWidth / 2 + Math.cos(angle) * radius * 1.5;
+                    p.expandedY = window.innerHeight / 2 + Math.sin(angle) * radius;
+                });
+            }
+        }
+        
+        // ============================================
+        // ROMANTIC QUOTES
+        // ============================================
+        
+        function showRandomQuote() {
+            const quoteEl = document.getElementById('romanticQuote');
+            const quote = romanticQuotes[Math.floor(Math.random() * romanticQuotes.length)];
+            
+            quoteEl.textContent = `"${quote}"`;
+            quoteEl.classList.add('visible');
+            
+            setTimeout(() => {
+                quoteEl.classList.remove('visible');
+            }, 5000);
+        }
+        
+        setInterval(showRandomQuote, 15000);
+        setTimeout(showRandomQuote, 3000);
+        
+        // ============================================
+        // SCREENSHOT
+        // ============================================
+        
+        document.getElementById('screenshotBtn').addEventListener('click', () => {
+            // Create combined canvas
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = window.innerWidth;
+            tempCanvas.height = window.innerHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // Draw background
+            tempCtx.fillStyle = '#1a0a1e';
+            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            
+            // Draw starfield
+            tempCtx.drawImage(starCanvas, 0, 0);
+            
+            // Draw particles
+            tempCtx.drawImage(particleCanvas, 0, 0);
+            
+            // Draw effects
+            tempCtx.drawImage(effectCanvas, 0, 0);
+            
+            // Download
+            const link = document.createElement('a');
+            link.download = `浪漫粒子_${Date.now()}.png`;
+            link.href = tempCanvas.toDataURL();
+            link.click();
+        });
+        
+        // ============================================
+        // LOADING & ERROR
+        // ============================================
+        
+        function updateLoadingProgress(percent) {
+            document.getElementById('loadingBar').style.width = percent + '%';
+        }
+        
+        function hideLoading() {
+            document.getElementById('loadingScreen').classList.add('hidden');
+        }
+        
+        function showErrorModal() {
+            document.getElementById('errorModal').classList.add('visible');
+        }
+        
+        document.getElementById('closeError').addEventListener('click', () => {
+            document.getElementById('errorModal').classList.remove('visible');
+        });
+        
+        // ============================================
+        // ANIMATION LOOP
+        // ============================================
+        
+        function animate() {
+            // Update
+            updateDreamMode();
+            
+            // Draw starfield
+            drawStarfield();
+            
+            // Clear particle canvas
+            particleCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+            
+            // Update and draw falling hearts
+            fallingHearts.forEach(heart => {
+                heart.update();
+                heart.draw(particleCtx);
+            });
+            
+            // Update and draw particles
+            particles.forEach(particle => {
+                particle.update();
+                particle.draw(particleCtx);
+            });
+            
+            // Draw effects
+            drawEffects();
+            
+            requestAnimationFrame(animate);
+        }
+        
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        
+        function init() {
+            updateLoadingProgress(10);
+            
+            initParticles();
+            resetDreamModeTimer();
+            
+            // Add click listener for fallback interaction
+            particleCanvas.addEventListener('click', (e) => {
+                if (state.handsDetected === 0) {
+                    state.isExpanded = !state.isExpanded;
+                }
+            });
+            
+            // Start animation
+            animate();
+            
+            // Initialize MediaPipe
+            initMediaPipe();
+        }
+        
+        init();
+    </script>
+</body>
+</html>
